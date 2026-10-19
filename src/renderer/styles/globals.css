@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Material You Dynamic Color Tokens (Dark by default) ===== */
+:root {
+  --md-primary: #cbb9f5;
+  --md-on-primary: #341e72;
+  --md-primary-container: #4c358a;
+  --md-on-primary-container: #e8ddff;
+  --md-secondary: #ccc2dc;
+  --md-on-secondary: #332d41;
+  --md-secondary-container: #4a4458;
+  --md-on-secondary-container: #e8def8;
+  --md-tertiary: #f0b8c6;
+  --md-on-tertiary: #4a2530;
+  --md-tertiary-container: #633b47;
+  --md-on-tertiary-container: #ffd9e3;
+  --md-surface: #141218;
+  --md-surface-variant: #49454f;
+  --md-on-surface: #e6e1e5;
+  --md-on-surface-variant: #cac4d0;
+  --md-surface-container: #1e1b22;
+  --md-surface-container-high: #2b2831;
+  --md-surface-container-highest: #36343b;
+  --md-outline: #938f99;
+  --md-outline-variant: #49454f;
+  --md-error: #ffb4ab;
+  --md-on-error: #690005;
+}
+
+/* ===== Global Resets ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Google Sans', 'Noto Sans', system-ui, sans-serif;
+  background-color: var(--md-surface);
+  color: var(--md-on-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Scrollbar (thin, matching M3) ===== */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--md-outline-variant);
+  border-radius: 999px;
+}
+
+/* ===== Draggable titlebar region ===== */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ===== Ripple effect ===== */
+@keyframes ripple {
+  0% { transform: scale(0); opacity: 0.4; }
+  100% { transform: scale(4); opacity: 0; }
+}
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+}
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--md-primary);
+  pointer-events: none;
+  animation: ripple 0.6s linear;
+}
+
+/* ===== Lyrics scrolling ===== */
+.lyrics-container {
+  scroll-behavior: smooth;
+}
+
+/* ===== Skeleton loading ===== */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+.skeleton {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  background: var(--md-surface-container-high);
+  border-radius: 8px;
+}
+
+/* ===== Now Playing glow ===== */
+.now-playing-glow {
+  box-shadow: 0 0 40px -10px var(--md-primary);
+}
+
+/* ===== Crossfade transition ===== */
+.crossfade-enter {
+  opacity: 0;
+}
+.crossfade-enter-active {
+  opacity: 1;
+  transition: opacity 300ms ease-in;
+}
+.crossfade-exit-active {
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}

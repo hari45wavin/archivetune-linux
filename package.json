@@ -1,0 +1,67 @@
+{
+  "name": "archivetune-linux",
+  "version": "1.0.0",
+  "description": "ArchiveTune for Linux — YouTube Music & Local Files Desktop Player",
+  "private": true,
+  "author": {
+    "name": "hari45wavin",
+    "email": "harijoshi215@gmail.com"
+  },
+  "license": "MIT",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
+    "dev:renderer": "vite --port 5173",
+    "dev:main": "wait-on http://localhost:5173 && tsc -p tsconfig.main.json && electron dist/main/index.js",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "dist": "npm run build && electron-builder",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
+    "framer-motion": "^11.12.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.rukamori.archivetune.linux",
+    "productName": "ArchiveTune",
+    "linux": {
+      "target": ["AppImage", "deb", "rpm"],
+      "category": "Audio",
+      "icon": "assets/icon.png",
+      "synopsis": "YouTube Music & Local Files Player",
+      "description": "ArchiveTune for Linux — the cutest music player with YouTube Music streaming, local library, synced lyrics, crossfade, and Last.fm scrobbling."
+    },
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**",
+      "assets/**"
+    ]
+  }
+}
