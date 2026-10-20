@@ -66,6 +66,24 @@ function notifyProgress() {
   }
 }
 
+export function cleanupMpv() {
+  if (progressInterval) {
+    clearInterval(progressInterval);
+    progressInterval = null;
+  }
+  if (mpvSocket) {
+    try { mpvSocket.destroy(); } catch { /* ignore */ }
+    mpvSocket = null;
+  }
+  if (mpvProcess) {
+    try { mpvProcess.kill('SIGTERM'); } catch { /* ignore */ }
+    mpvProcess = null;
+  }
+  if (fs.existsSync(SOCKET_PATH)) {
+    try { fs.unlinkSync(SOCKET_PATH); } catch { /* ignore */ }
+  }
+}
+
 async function startMpv(): Promise<void> {
   if (mpvProcess) {
     try { mpvProcess.kill('SIGKILL'); } catch { /* ignore */ }

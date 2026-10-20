@@ -53,7 +53,15 @@ async function parseYtdlpOutput(stdout: string): Promise<SearchResult[]> {
   }).filter(Boolean) as SearchResult[];
 }
 
+const categoryCache = new Map<string, { data: SearchResult[]; timestamp: number }>();
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes in-memory cache
+
 export async function getLiveCategory(category = 'trending'): Promise<SearchResult[]> {
+  const cached = categoryCache.get(category);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS && cached.data.length > 0) {
+    return cached.data;
+  }
+
   const target = CATEGORY_QUERIES[category] || `ytsearch25:${category} songs`;
   const isPlaylist = target.startsWith('http');
 
@@ -73,7 +81,10 @@ export async function getLiveCategory(category = 'trending'): Promise<SearchResu
   try {
     const { stdout } = await execFileAsync(YT_DLP, args, { timeout: 35000, maxBuffer: 10 * 1024 * 1024 });
     const results = await parseYtdlpOutput(stdout);
-    if (results.length > 0) return results;
+    if (results.length > 0) {
+      categoryCache.set(category, { data: results, timestamp: Date.now() });
+      return results;
+    }
   } catch (err) {
     console.warn(`Category fetch ${category} failed, falling back to search`, err);
   }
@@ -87,7 +98,11 @@ export async function getLiveCategory(category = 'trending'): Promise<SearchResu
       '--quiet',
       `ytsearch20:${category} top songs`,
     ], { timeout: 25000, maxBuffer: 10 * 1024 * 1024 });
-    return await parseYtdlpOutput(stdout);
+    const fallbackResults = await parseYtdlpOutput(stdout);
+    if (fallbackResults.length > 0) {
+      categoryCache.set(category, { data: fallbackResults, timestamp: Date.now() });
+    }
+    return fallbackResults;
   } catch {
     return [];
   }
