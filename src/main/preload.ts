@@ -29,15 +29,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
-  // YouTube Music
+  // YouTube Music Live
   ytmusic: {
     search: (query: string) => ipcRenderer.invoke('ytmusic:search', query),
     getStreamUrl: (videoId: string) => ipcRenderer.invoke('ytmusic:getStreamUrl', videoId),
     getHome: () => ipcRenderer.invoke('ytmusic:getHome'),
+    getCategory: (category: string) => ipcRenderer.invoke('ytmusic:getCategory', category),
     getArtist: (artistId: string) => ipcRenderer.invoke('ytmusic:getArtist', artistId),
     getAlbum: (albumId: string) => ipcRenderer.invoke('ytmusic:getAlbum', albumId),
     getPlaylist: (playlistId: string) => ipcRenderer.invoke('ytmusic:getPlaylist', playlistId),
     getSuggested: (videoId: string) => ipcRenderer.invoke('ytmusic:getSuggested', videoId),
+  },
+
+  // Spotify Integration (matching ArchiveTune SpotifyCore)
+  spotify: {
+    getStatus: () => ipcRenderer.invoke('spotify:getStatus'),
+    login: () => ipcRenderer.invoke('spotify:login'),
+    connectManual: (spDc: string) => ipcRenderer.invoke('spotify:connectManual', spDc),
+    disconnect: () => ipcRenderer.invoke('spotify:disconnect'),
+    getLikedSongs: (limit?: number, offset?: number) => ipcRenderer.invoke('spotify:getLikedSongs', limit, offset),
+    getPlaylists: (limit?: number) => ipcRenderer.invoke('spotify:getPlaylists', limit),
+    getPlaylistTracks: (playlistId: string) => ipcRenderer.invoke('spotify:getPlaylistTracks', playlistId),
+    resolveTrack: (track: { title: string; artist: string }) => ipcRenderer.invoke('spotify:resolveTrack', track),
   },
 
   // Local Library

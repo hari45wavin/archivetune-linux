@@ -7,6 +7,7 @@ import MiniPlayer from './components/MiniPlayer';
 import NowPlayingOverlay from './components/NowPlayingOverlay';
 import HomePage from './pages/HomePage';
 import SearchPage from './pages/SearchPage';
+import SpotifyPage from './pages/SpotifyPage';
 import LibraryPage from './pages/LibraryPage';
 import SettingsPage from './pages/SettingsPage';
 import { useUIStore } from './store';
@@ -37,6 +38,7 @@ function AppContent() {
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route path="/home" element={<HomePage />} />
             <Route path="/search" element={<SearchPage />} />
+            <Route path="/spotify" element={<SpotifyPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

@@ -1,10 +1,11 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Library, Settings, Music2 } from 'lucide-react';
+import { Home, Search, ListMusic, Library, Settings, Music2 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { icon: Home, label: 'Home', path: '/home' },
   { icon: Search, label: 'Search', path: '/search' },
+  { icon: ListMusic, label: 'Spotify', path: '/spotify' },
   { icon: Library, label: 'Library', path: '/library' },
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];

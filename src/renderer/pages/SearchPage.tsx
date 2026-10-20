@@ -10,10 +10,14 @@ export default function SearchPage() {
 
   const { data: results = [], isLoading, isFetching } = useQuery<Track[]>({
     queryKey: ['search', submitted],
-    queryFn: () =>
-      submitted
-        ? window.electronAPI?.ytmusic.search(submitted) ?? Promise.resolve([])
-        : Promise.resolve([]),
+    queryFn: async () => {
+      if (!submitted) return [];
+      const res = await window.electronAPI?.ytmusic.search(submitted);
+      return (res || []).map((t: any) => ({
+        ...t,
+        source: 'youtube' as const,
+      }));
+    },
     enabled: submitted.length > 0,
   });
 

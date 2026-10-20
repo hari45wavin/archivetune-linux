@@ -5,6 +5,7 @@ import { setupYTMusicIPC } from './ytmusic';
 import { setupLibraryIPC } from './library';
 import { setupLyricsIPC } from './lyrics';
 import { setupScrobbleIPC } from './scrobble';
+import { setupSpotifyIPC } from './spotify';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -49,6 +50,7 @@ app.whenReady().then(() => {
   setupLibraryIPC();
   setupLyricsIPC();
   setupScrobbleIPC();
+  setupSpotifyIPC();
 
   // Window control handlers
   ipcMain.on('window:minimize', () => mainWindow?.minimize());

@@ -25,9 +25,20 @@ declare global {
         search: (query: string) => Promise<Track[]>;
         getStreamUrl: (videoId: string) => Promise<{ url: string; ok: boolean; error?: string }>;
         getHome: () => Promise<{ trending: Track[] }>;
+        getCategory: (category: string) => Promise<Track[]>;
         getSuggested: (videoId: string) => Promise<Track[]>;
         getAlbum: (albumId: string) => Promise<Track[]>;
         getPlaylist: (playlistId: string) => Promise<Track[]>;
+      };
+      spotify: {
+        getStatus: () => Promise<{ connected: boolean; user?: any }>;
+        login: () => Promise<{ ok: boolean; user?: any; error?: string }>;
+        connectManual: (spDc: string) => Promise<{ ok: boolean; user?: any; error?: string }>;
+        disconnect: () => Promise<{ ok: boolean }>;
+        getLikedSongs: (limit?: number, offset?: number) => Promise<Track[]>;
+        getPlaylists: (limit?: number) => Promise<Array<{ id: string; name: string; description?: string; trackCount: number; thumbnail?: string }>>;
+        getPlaylistTracks: (playlistId: string) => Promise<Track[]>;
+        resolveTrack: (track: { title: string; artist: string }) => Promise<{ url: string | null; id: string | null }>;
       };
       library: {
         scan: (dir: string) => Promise<Track[]>;
@@ -78,6 +89,10 @@ export function usePlayer() {
       let url: string;
       if (track.source === 'local' && track.path) {
         url = `file://${track.path}`;
+      } else if (track.source === 'spotify') {
+        const resolved = await api.spotify.resolveTrack({ title: track.title, artist: track.artist });
+        if (!resolved.url) throw new Error('Could not resolve Spotify audio stream');
+        url = resolved.url;
       } else {
         const res = await api.ytmusic.getStreamUrl(track.id);
         if (!res.ok || !res.url) throw new Error(res.error ?? 'No stream URL');

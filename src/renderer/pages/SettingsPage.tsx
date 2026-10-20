@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Palette, Radio, Disc3, Shield, Info, ExternalLink } from 'lucide-react';
+import { Palette, Radio, Disc3, Shield, Info, ExternalLink, ListMusic } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useUIStore } from '../store';
 
 const SEED_COLORS = [
@@ -14,6 +15,7 @@ const SEED_COLORS = [
 ];
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const { theme, setTheme, seedColor, setSeedColor } = useUIStore();
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
@@ -116,6 +118,28 @@ export default function SettingsPage() {
             <span className="font-medium text-on-surface">LRCLib API (Waterfall Synced)</span>
           </div>
         </div>
+      </section>
+
+      {/* Spotify Integration */}
+      <section className="bg-surface-container rounded-2xl p-5 space-y-4 border border-outline-variant/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ListMusic className="text-[#1DB954]" size={22} />
+            <div>
+              <h2 className="text-base font-semibold text-on-surface">Spotify Integration</h2>
+              <p className="text-xs text-on-surface-variant">Sync your Spotify Liked Songs & Playlists into ArchiveTune</p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/spotify')}
+            className="px-4 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs transition-colors shadow"
+          >
+            Open Spotify Connect
+          </button>
+        </div>
+        <p className="text-xs text-on-surface-variant leading-relaxed">
+          Matches ArchiveTune's SpotifyCore resolver — streams Spotify music via high-fidelity YouTube Music audio streams with synced lyrics.
+        </p>
       </section>
 
       {/* Last.fm Scrobbler */}
