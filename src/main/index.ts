@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { setupPlayerIPC } from './player';
 import { setupYTMusicIPC } from './ytmusic';
 import { setupLibraryIPC } from './library';
@@ -12,6 +13,12 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  const iconPath = fs.existsSync(path.join(__dirname, '../../assets/icon.png'))
+    ? path.join(__dirname, '../../assets/icon.png')
+    : fs.existsSync(path.join(process.resourcesPath, 'assets/icon.png'))
+    ? path.join(process.resourcesPath, 'assets/icon.png')
+    : path.join('/home/hariom_joshi/.local/share/icons/hicolor/256x256/apps/archivetune.png');
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -26,7 +33,7 @@ function createWindow() {
       nodeIntegration: false,
       webSecurity: false, // needed for yt-dlp stream URLs
     },
-    icon: path.join(__dirname, '../../assets/icon.png'),
+    icon: iconPath,
   });
 
   if (isDev) {

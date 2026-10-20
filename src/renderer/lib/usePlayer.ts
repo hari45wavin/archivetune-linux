@@ -17,6 +17,9 @@ declare global {
         stop: () => Promise<void>;
         seek: (seconds: number) => Promise<void>;
         setVolume: (vol: number) => Promise<void>;
+        setSpeed: (speed: number) => Promise<{ ok: boolean }>;
+        setNormalization: (enabled: boolean) => Promise<{ ok: boolean }>;
+        downloadTrack: (track: object) => Promise<{ ok: boolean; path?: string; error?: string }>;
         getStatus: () => Promise<{ isPlaying: boolean; position: number; duration: number }>;
         onProgress: (cb: (info: { position: number; duration: number; isPlaying: boolean }) => void) => () => void;
         onEnded: (cb: () => void) => () => void;
@@ -149,6 +152,42 @@ export function usePlayer() {
     if (prev) await playTrack(prev);
   }, [prevTrack, playTrack]);
 
+  const changeSpeed = useCallback(async (speed: number) => {
+    usePlayerStore.getState().setSpeed(speed);
+    await window.electronAPI?.player.setSpeed(speed);
+  }, []);
+
+  const toggleNormalization = useCallback(async () => {
+    const next = !usePlayerStore.getState().normalization;
+    usePlayerStore.getState().setNormalization(next);
+    await window.electronAPI?.player.setNormalization(next);
+  }, []);
+
+  const downloadCurrentTrack = useCallback(async (track?: Track) => {
+    const target = track || currentTrack;
+    if (!target) return { ok: false, error: 'No track selected' };
+    return await window.electronAPI?.player.downloadTrack({
+      id: target.id,
+      title: target.title,
+      artist: target.artist,
+    });
+  }, [currentTrack]);
+
+  // Sleep timer interval (countdown every 60s)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const { sleepTimer, setSleepTimer } = usePlayerStore.getState();
+      if (typeof sleepTimer !== 'number' || sleepTimer <= 0) return;
+      if (sleepTimer <= 1) {
+        setSleepTimer(null);
+        pause();
+      } else {
+        setSleepTimer(sleepTimer - 1);
+      }
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [pause]);
+
   // Register progress and ended listeners once
   useEffect(() => {
     const api = window.electronAPI;
@@ -159,7 +198,14 @@ export function usePlayer() {
       setDuration(info.duration);
     });
 
-    const unsubEnded = api.player.onEnded(() => {
+    const unsubEnded = () => {
+      const { sleepTimer, setSleepTimer } = usePlayerStore.getState();
+      if (sleepTimer === 'track') {
+        setSleepTimer(null);
+        pause();
+        return;
+      }
+
       // Scrobble on song end if >30s played
       const { currentTrack: ct } = usePlayerStore.getState();
       if (ct && ct.duration > 30) {
@@ -172,13 +218,15 @@ export function usePlayer() {
         }).catch(() => {});
       }
       skipNext();
-    });
+    };
+
+    const cleanupEnded = api.player.onEnded(unsubEnded);
 
     return () => {
       unsubProgress();
-      unsubEnded();
+      cleanupEnded();
     };
-  }, [setPosition, setDuration, skipNext]);
+  }, [setPosition, setDuration, skipNext, pause]);
 
   return {
     currentTrack,
@@ -191,5 +239,8 @@ export function usePlayer() {
     seek,
     skipNext,
     skipPrev,
+    changeSpeed,
+    toggleNormalization,
+    downloadCurrentTrack,
   };
 }

@@ -18,12 +18,12 @@ export default function LibraryPage() {
     setIsScanning(true);
     try {
       const scanned = await window.electronAPI?.library.scan(dirPath) ?? [];
-      const libTracks: Track[] = scanned.map((meta: { path: string; title: string; artist: string; album: string; albumArtist: string; duration: number; thumbnail?: string }) => ({
-        id: meta.path,
-        title: meta.title,
-        artist: meta.artist,
+      const libTracks: Track[] = scanned.map((meta: any) => ({
+        id: meta.path || meta.id,
+        title: meta.title || 'Unknown Title',
+        artist: meta.artist || 'Unknown Artist',
         album: meta.album,
-        duration: meta.duration,
+        duration: meta.duration || 0,
         thumbnail: meta.thumbnail,
         source: 'local' as const,
         path: meta.path,

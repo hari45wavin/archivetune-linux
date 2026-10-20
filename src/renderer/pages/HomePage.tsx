@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Flame, Globe2, Music, Sparkles, Coffee, Radio, Play, RefreshCw } from 'lucide-react';
+import { Flame, Globe2, Music, Sparkles, Coffee, Radio, Play, RefreshCw, History } from 'lucide-react';
 import TrackRow from '../components/TrackRow';
 import { Track } from '../store';
 import { usePlayer } from '../lib/usePlayer';
@@ -28,7 +28,7 @@ function SkeletonCard() {
 export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('trending');
   const { playTrack } = usePlayer();
-  const { setQueue } = usePlayerStore();
+  const { setQueue, history } = usePlayerStore();
 
   const { data: tracks = [], isLoading, refetch, isFetching } = useQuery<Track[]>({
     queryKey: ['liveCategory', selectedCategory],
@@ -91,6 +91,45 @@ export default function HomePage() {
           );
         })}
       </div>
+
+      {/* Recently Played */}
+      {history.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <History size={18} className="text-primary" />
+            <h2 className="text-lg font-bold text-on-surface tracking-tight">Recently Played</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+            {history.map((track, i) => (
+              <div
+                key={`hist-${track.id}-${i}`}
+                onClick={() => {
+                  setQueue(history, i);
+                  playTrack(track);
+                }}
+                className="group w-36 shrink-0 p-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high transition-all duration-200 cursor-pointer flex flex-col gap-2 shadow-sm"
+              >
+                <div className="relative aspect-square rounded-xl overflow-hidden bg-surface-container-highest">
+                  {track.thumbnail ? (
+                    <img src={track.thumbnail} alt="" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-2xl">🎵</div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg">
+                      <Play size={16} fill="currentColor" />
+                    </div>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-on-surface truncate">{track.title}</p>
+                  <p className="text-[11px] text-on-surface-variant truncate">{track.artist}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Featured Top Picks Carousel/Grid */}
       {featured.length > 0 && !isLoading && (

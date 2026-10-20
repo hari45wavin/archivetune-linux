@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stop: () => ipcRenderer.invoke('player:stop'),
     seek: (seconds: number) => ipcRenderer.invoke('player:seek', seconds),
     setVolume: (vol: number) => ipcRenderer.invoke('player:setVolume', vol),
+    setSpeed: (speed: number) => ipcRenderer.invoke('player:setSpeed', speed),
+    setNormalization: (enabled: boolean) => ipcRenderer.invoke('player:setNormalization', enabled),
+    downloadTrack: (track: object) => ipcRenderer.invoke('player:downloadTrack', track),
     getStatus: () => ipcRenderer.invoke('player:getStatus'),
     onProgress: (cb: (info: object) => void) => {
       ipcRenderer.on('player:progress', (_e, info) => cb(info));
