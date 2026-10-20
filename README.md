@@ -28,12 +28,17 @@ It provides a full native desktop application built with **Electron + React + Ty
 | Feature | Description |
 |---|---|
 | **🎨 Material You Dynamic Theming** | Full M3 dark, light, and AMOLED pure black themes with customizable seed accent color palettes. |
-| **🎵 YouTube Music Streaming** | Instant search, trending music, and streaming powered by `yt-dlp` with gapless audio. |
+| **🎵 YouTube Music Streaming** | Instant search, trending music, top charts, and streaming powered by `yt-dlp` with gapless audio. |
+| **💚 Spotify Connect Integration** | Import & play Spotify Liked Songs and Playlists resolved via high-fidelity streams. |
 | **📁 Local Music Library** | Fast local directory scanning for MP3, FLAC, WAV, OGG, M4A, OPUS with ID3/tag parsing. |
-| **🎤 Synced Waterfall Lyrics** | Synchronized line-by-line LRC lyrics via LRCLib with auto-scrolling and seek-on-click. |
+| **🎤 Synced Waterfall Lyrics** | Synchronized line-by-line LRC lyrics with auto-scrolling, click-to-seek, lyrics sync offset slider (-5s to +5s), and font size toggles. |
+| **⏰ Sleep Timer** | Configurable sleep timer (15m, 30m, 45m, 60m, or end-of-track) with live badge display. |
+| **⚡ Playback Speed & Normalization** | 0.5x to 2.0x playback speed and Dynamic Audio Normalization (`dynaudnorm`) for consistent loudness. |
+| **🎚️ Audio Crossfade** | 0 to 20-second seamless track transitions. |
+| **💾 Offline Downloader** | One-click audio track extraction to `~/Music/` in 320kbps MP3 / Opus with embedded metadata. |
 | **📻 Last.fm Scrobbler** | Audioscrobbler 2.0 integration with live Now Playing updates and scrobbling thresholds. |
 | **🎛️ mpv Audio Engine** | Low-latency JSON IPC socket audio engine with gapless playback, volume scaling, and seek controls. |
-| **📋 Queue & Playback Modes** | Full queue drawer, single/all repeat modes, shuffle, and persistent mini-player. |
+| **📋 Queue & Playback Modes** | Full queue reordering (move up/down), item removal, shuffle with undo, and persistent mini-player. |
 
 ---
 
