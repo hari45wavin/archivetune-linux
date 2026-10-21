@@ -37,7 +37,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     search: (query: string) => ipcRenderer.invoke('ytmusic:search', query),
     getStreamUrl: (videoId: string) => ipcRenderer.invoke('ytmusic:getStreamUrl', videoId),
     getHome: () => ipcRenderer.invoke('ytmusic:getHome'),
-    getCategory: (category: string) => ipcRenderer.invoke('ytmusic:getCategory', category),
+    getCategory: (category: string, forceRefresh = false) =>
+      ipcRenderer.invoke('ytmusic:getCategory', category, forceRefresh),
     getArtist: (artistId: string) => ipcRenderer.invoke('ytmusic:getArtist', artistId),
     getAlbum: (albumId: string) => ipcRenderer.invoke('ytmusic:getAlbum', albumId),
     getPlaylist: (playlistId: string) => ipcRenderer.invoke('ytmusic:getPlaylist', playlistId),

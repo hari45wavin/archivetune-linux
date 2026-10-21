@@ -9,8 +9,6 @@ import { setupScrobbleIPC } from './scrobble';
 import { setupSpotifyIPC } from './spotify';
 
 // Ensure rock-solid stability and instant cold-boot across all Linux drivers (Intel/AMD/Nvidia).
-// Disabling hardware acceleration prevents Mesa Gallium EGL sync fence crashes (SIGABRT in dri_create_fence_fd)
-// and Wayland GBM scanout buffer allocation errors while using near-zero CPU for 2D UI rendering.
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-gpu');
@@ -56,7 +54,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    show: false, // Avoid white/black flash during startup
+    show: true,
     frame: false,
     titleBarStyle: 'hidden',
     backgroundColor: '#141218',

@@ -28,7 +28,7 @@ declare global {
         search: (query: string) => Promise<Track[]>;
         getStreamUrl: (videoId: string) => Promise<{ url: string; ok: boolean; error?: string }>;
         getHome: () => Promise<{ trending: Track[] }>;
-        getCategory: (category: string) => Promise<Track[]>;
+        getCategory: (category: string, forceRefresh?: boolean) => Promise<Track[]>;
         getSuggested: (videoId: string) => Promise<Track[]>;
         getAlbum: (albumId: string) => Promise<Track[]>;
         getPlaylist: (playlistId: string) => Promise<Track[]>;

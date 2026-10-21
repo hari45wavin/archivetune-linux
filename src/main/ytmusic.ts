@@ -2,8 +2,8 @@
  * ytmusic.ts — YouTube Music Live Integration via yt-dlp & InnerTube
  *
  * Provides real-time live songs from YouTube Music:
- * - Live Trending Charts
- * - Curated Categories (Global Top 50, Bollywood/Hindi, Pop Hits, Lo-Fi, Hip Hop)
+ * - Dynamic Live Trending Charts
+ * - Curated Categories (Global Top 50, Bollywood/Hindi, Top Mixes, Pop Hits, Lo-Fi, Romantic, Hip Hop)
  * - Live Search
  * - Fast stream URL extraction
  */
@@ -24,26 +24,83 @@ export interface SearchResult {
   album?: string;
 }
 
-const CATEGORY_QUERIES: Record<string, string> = {
-  trending: 'https://www.youtube.com/playlist?list=PL4fGSI1pDJn5kI81J1fYWK5eZRl1zJ5kM',
-  global_top: 'https://www.youtube.com/playlist?list=PL4fGSI1pDJn6jXS_PEoN9oe32PUTrNwZ3',
-  hindi: 'ytsearch25:latest hindi songs bollywood 2026',
-  pop: 'ytsearch25:top pop music hits songs',
-  lofi: 'ytsearch25:chill lofi hip hop beats to study relax to',
-  hiphop: 'ytsearch25:top hip hop rap hits',
+const CATEGORY_QUERIES: Record<string, string[]> = {
+  trending: [
+    'https://www.youtube.com/playlist?list=PL4fGSI1pDJn5kI81J1fYWK5eZRl1zJ5kM',
+    'ytsearch30:trending music songs hits official audio 2026 -jukebox -mashup',
+    'ytsearch30:top trending songs music 2026',
+  ],
+  global_top: [
+    'https://www.youtube.com/playlist?list=PL4fGSI1pDJn6jXS_PEoN9oe32PUTrNwZ3',
+    'ytsearch30:top 50 global hits music songs 2026 -jukebox',
+  ],
+  hindi: [
+    'ytsearch30:latest hindi songs bollywood 2026 single official audio -jukebox -mashup',
+    'ytsearch30:top bollywood romantic hits 2026 audio -jukebox',
+  ],
+  mixes: [
+    'ytsearch30:top music mix jukebox bollywood chill 2026',
+    'ytsearch30:hindi acoustic lofi mix songs 2026',
+  ],
+  pop: [
+    'ytsearch30:top pop music hits songs official audio 2026 -jukebox',
+  ],
+  lofi: [
+    'ytsearch30:lofi vibe hindi chill relax songs 2026',
+    'ytsearch30:chill lofi hip hop beats to study relax to',
+  ],
+  romantic: [
+    'ytsearch30:best romantic love songs hindi english 2026 -jukebox',
+  ],
+  hiphop: [
+    'ytsearch30:top hip hop rap hits 2026 official audio -jukebox',
+  ],
 };
 
-async function parseYtdlpOutput(stdout: string): Promise<SearchResult[]> {
+function cleanTitle(raw: string): string {
+  return raw
+    .replace(/\s*[([{\u3010\uff08].*?(Official|Music Video|Video|Audio|Lyric|4K|HD|Full Song|Visualizer|Teaser|Remastered).*?[)\]}\u3011\uff09]/gi, '')
+    .replace(/\|\s*@.*$/g, '')
+    .replace(/\|\s*Full Video.*$/gi, '')
+    .replace(/\|\s*Official Music Video.*$/gi, '')
+    .trim() || raw;
+}
+
+function cleanArtist(raw: string): string {
+  return raw
+    .replace(/\s*-\s*Topic$/i, '')
+    .replace(/\s*VEVO$/i, '')
+    .replace(/\s*Official$/i, '')
+    .trim() || raw;
+}
+
+async function parseYtdlpOutput(stdout: string, filterDuration = true): Promise<SearchResult[]> {
   const lines = stdout.trim().split('\n').filter(Boolean);
   return lines.map((line) => {
     try {
       const item = JSON.parse(line);
       if (!item.id) return null;
+
+      // Filter out compilations / hour-long videos for single track lists
+      if (filterDuration && item.duration && item.duration > 700) {
+        return null;
+      }
+
+      let thumb = item.thumbnail;
+      if (!thumb && Array.isArray(item.thumbnails) && item.thumbnails.length > 0) {
+        // Pick largest resolution thumbnail
+        const sorted = [...item.thumbnails].sort((a, b) => (b.width || 0) - (a.width || 0));
+        thumb = sorted[0]?.url;
+      }
+      if (!thumb) {
+        thumb = `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`;
+      }
+
       return {
         id: item.id,
-        title: item.title ?? 'Unknown Title',
-        artist: item.uploader ?? item.channel ?? item.artist ?? 'YouTube Music',
-        thumbnail: item.thumbnail ?? `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`,
+        title: cleanTitle(item.title ?? 'Unknown Title'),
+        artist: cleanArtist(item.uploader ?? item.channel ?? item.artist ?? 'YouTube Music'),
+        thumbnail: thumb,
         duration: item.duration ?? 0,
         album: item.album ?? undefined,
       } as SearchResult;
@@ -53,82 +110,60 @@ async function parseYtdlpOutput(stdout: string): Promise<SearchResult[]> {
   }).filter(Boolean) as SearchResult[];
 }
 
-const INITIAL_TRENDING_TRACKS: SearchResult[] = [
-  { id: 'kffacxfA7G4', title: 'Die With A Smile', artist: 'Lady Gaga & Bruno Mars', thumbnail: 'https://i.ytimg.com/vi/kffacxfA7G4/hqdefault.jpg', duration: 251 },
-  { id: 'jfKfPfyJRdk', title: 'Birds of a Feather', artist: 'Billie Eilish', thumbnail: 'https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault.jpg', duration: 196 },
-  { id: 'T3E9Wjbq44E', title: 'Good Luck, Babe!', artist: 'Chappell Roan', thumbnail: 'https://i.ytimg.com/vi/T3E9Wjbq44E/hqdefault.jpg', duration: 218 },
-  { id: 'Oa_RSwwpPaA', title: 'Taste', artist: 'Sabrina Carpenter', thumbnail: 'https://i.ytimg.com/vi/Oa_RSwwpPaA/hqdefault.jpg', duration: 157 },
-  { id: 'eVTXPUF4Oz4', title: 'In The End', artist: 'Linkin Park', thumbnail: 'https://i.ytimg.com/vi/eVTXPUF4Oz4/hqdefault.jpg', duration: 218 },
-  { id: 'kJQP7kiw5Fk', title: 'Despacito', artist: 'Luis Fonsi ft. Daddy Yankee', thumbnail: 'https://i.ytimg.com/vi/kJQP7kiw5Fk/hqdefault.jpg', duration: 228 },
-  { id: 'fJ9rUzIMcZQ', title: 'Bohemian Rhapsody', artist: 'Queen', thumbnail: 'https://i.ytimg.com/vi/fJ9rUzIMcZQ/hqdefault.jpg', duration: 359 },
-  { id: 'hT_nvWreIhg', title: 'Counting Stars', artist: 'OneRepublic', thumbnail: 'https://i.ytimg.com/vi/hT_nvWreIhg/hqdefault.jpg', duration: 257 },
-];
-
-const categoryCache = new Map<string, { data: SearchResult[]; timestamp: number }>([
-  ['trending', { data: INITIAL_TRENDING_TRACKS, timestamp: 0 }],
-]);
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes in-memory cache
+const categoryCache = new Map<string, { data: SearchResult[]; timestamp: number }>();
+const CACHE_TTL_MS = 8 * 60 * 1000; // 8 minutes live cache
 
 async function fetchCategoryOnline(category: string): Promise<SearchResult[]> {
-  const target = CATEGORY_QUERIES[category] || `ytsearch25:${category} songs`;
-  const isPlaylist = target.startsWith('http');
+  const queries = CATEGORY_QUERIES[category] || [`ytsearch30:${category} top songs 2026 -jukebox`];
+  const filterDuration = category !== 'mixes';
 
-  const args = [
-    '--dump-json',
-    '--flat-playlist',
-    '--no-warnings',
-    '--quiet',
-  ];
-
-  if (isPlaylist) {
-    args.push('--playlist-end', '25', target);
-  } else {
-    args.push(target);
-  }
-
-  try {
-    const { stdout } = await execFileAsync(YT_DLP, args, { timeout: 35000, maxBuffer: 10 * 1024 * 1024 });
-    const results = await parseYtdlpOutput(stdout);
-    if (results.length > 0) {
-      categoryCache.set(category, { data: results, timestamp: Date.now() });
-      return results;
-    }
-  } catch (err) {
-    console.warn(`Category fetch ${category} failed, falling back to search`, err);
-  }
-
-  // Fallback search query
-  try {
-    const { stdout } = await execFileAsync(YT_DLP, [
+  for (const target of queries) {
+    const isPlaylist = target.startsWith('http');
+    const args = [
       '--dump-json',
       '--flat-playlist',
       '--no-warnings',
       '--quiet',
-      `ytsearch20:${category} top songs`,
-    ], { timeout: 25000, maxBuffer: 10 * 1024 * 1024 });
-    const fallbackResults = await parseYtdlpOutput(stdout);
-    if (fallbackResults.length > 0) {
-      categoryCache.set(category, { data: fallbackResults, timestamp: Date.now() });
+    ];
+
+    if (isPlaylist) {
+      args.push('--playlist-end', '30', target);
+    } else {
+      args.push(target);
     }
-    return fallbackResults;
-  } catch {
-    return [];
+
+    try {
+      const { stdout } = await execFileAsync(YT_DLP, args, { timeout: 35000, maxBuffer: 15 * 1024 * 1024 });
+      const results = await parseYtdlpOutput(stdout, filterDuration);
+      if (results.length > 0) {
+        categoryCache.set(category, { data: results, timestamp: Date.now() });
+        return results;
+      }
+    } catch (err) {
+      console.warn(`Query ${target} failed, trying next...`);
+    }
   }
+
+  return [];
 }
 
-export async function getLiveCategory(category = 'trending'): Promise<SearchResult[]> {
+export async function getLiveCategory(category = 'trending', forceRefresh = false): Promise<SearchResult[]> {
   const cached = categoryCache.get(category);
-  if (cached && cached.timestamp > 0 && Date.now() - cached.timestamp < CACHE_TTL_MS && cached.data.length > 0) {
+  if (!forceRefresh && cached && cached.data.length > 0 && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.data;
   }
 
-  // Instant seed for cold start: return initial data immediately while fetching fresh data in background
-  if (cached && cached.timestamp === 0) {
-    fetchCategoryOnline(category).catch(() => {});
+  const live = await fetchCategoryOnline(category);
+  if (live.length > 0) {
+    return live;
+  }
+
+  // If live fetch failed but we have cached data, fallback to cache
+  if (cached && cached.data.length > 0) {
     return cached.data;
   }
 
-  return await fetchCategoryOnline(category);
+  return [];
 }
 
 export async function searchYouTubeMusic(query: string): Promise<SearchResult[]> {
@@ -139,8 +174,8 @@ export async function searchYouTubeMusic(query: string): Promise<SearchResult[]>
     '--flat-playlist',
     '--no-warnings',
     '--quiet',
-    `ytsearch25:${query.trim()}`,
-  ], { timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
+    `ytsearch30:${query.trim()}`,
+  ], { timeout: 30000, maxBuffer: 15 * 1024 * 1024 });
 
   return await parseYtdlpOutput(stdout);
 }
@@ -171,9 +206,9 @@ export function setupYTMusicIPC() {
     }
   });
 
-  ipcMain.handle('ytmusic:getCategory', async (_e, category: string) => {
+  ipcMain.handle('ytmusic:getCategory', async (_e, category: string, forceRefresh = false) => {
     try {
-      return await getLiveCategory(category);
+      return await getLiveCategory(category, forceRefresh);
     } catch (err) {
       console.error('ytmusic:getCategory error', err);
       return [];
