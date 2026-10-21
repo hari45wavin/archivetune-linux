@@ -188,46 +188,6 @@ export function usePlayer() {
     return () => clearInterval(timer);
   }, [pause]);
 
-  // Register progress and ended listeners once
-  useEffect(() => {
-    const api = window.electronAPI;
-    if (!api) return;
-
-    const unsubProgress = api.player.onProgress((info) => {
-      setPosition(info.position);
-      setDuration(info.duration);
-    });
-
-    const unsubEnded = () => {
-      const { sleepTimer, setSleepTimer } = usePlayerStore.getState();
-      if (sleepTimer === 'track') {
-        setSleepTimer(null);
-        pause();
-        return;
-      }
-
-      // Scrobble on song end if >30s played
-      const { currentTrack: ct } = usePlayerStore.getState();
-      if (ct && ct.duration > 30) {
-        api.scrobble.scrobble({
-          artist: ct.artist,
-          track: ct.title,
-          album: ct.album,
-          timestamp: startTimeRef.current,
-          duration: ct.duration,
-        }).catch(() => {});
-      }
-      skipNext();
-    };
-
-    const cleanupEnded = api.player.onEnded(unsubEnded);
-
-    return () => {
-      unsubProgress();
-      cleanupEnded();
-    };
-  }, [setPosition, setDuration, skipNext, pause]);
-
   return {
     currentTrack,
     queue,
@@ -243,4 +203,49 @@ export function usePlayer() {
     toggleNormalization,
     downloadCurrentTrack,
   };
+}
+
+let globalEventsRegistered = false;
+
+export function usePlayerEvents() {
+  const { setPosition, setDuration, skipNext, pause } = usePlayer();
+  const startTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api || globalEventsRegistered) return;
+    globalEventsRegistered = true;
+
+    const unsubProgress = api.player.onProgress((info: any) => {
+      setPosition(info.position);
+      setDuration(info.duration);
+    });
+
+    const unsubEnded = api.player.onEnded(() => {
+      const { sleepTimer, setSleepTimer } = usePlayerStore.getState();
+      if (sleepTimer === 'track') {
+        setSleepTimer(null);
+        pause();
+        return;
+      }
+
+      const { currentTrack: ct } = usePlayerStore.getState();
+      if (ct && ct.duration > 30) {
+        api.scrobble.scrobble({
+          artist: ct.artist,
+          track: ct.title,
+          album: ct.album,
+          timestamp: startTimeRef.current,
+          duration: ct.duration,
+        }).catch(() => {});
+      }
+      skipNext();
+    });
+
+    return () => {
+      unsubProgress();
+      unsubEnded();
+      globalEventsRegistered = false;
+    };
+  }, [setPosition, setDuration, skipNext, pause]);
 }

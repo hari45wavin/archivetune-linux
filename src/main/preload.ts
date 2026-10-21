@@ -23,12 +23,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     downloadTrack: (track: object) => ipcRenderer.invoke('player:downloadTrack', track),
     getStatus: () => ipcRenderer.invoke('player:getStatus'),
     onProgress: (cb: (info: object) => void) => {
-      ipcRenderer.on('player:progress', (_e, info) => cb(info));
-      return () => ipcRenderer.removeAllListeners('player:progress');
+      const handler = (_e: any, info: any) => cb(info);
+      ipcRenderer.on('player:progress', handler);
+      return () => ipcRenderer.removeListener('player:progress', handler);
     },
     onEnded: (cb: () => void) => {
-      ipcRenderer.on('player:ended', () => cb());
-      return () => ipcRenderer.removeAllListeners('player:ended');
+      const handler = () => cb();
+      ipcRenderer.on('player:ended', handler);
+      return () => ipcRenderer.removeListener('player:ended', handler);
     },
   },
 

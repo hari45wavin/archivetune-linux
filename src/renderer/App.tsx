@@ -11,7 +11,7 @@ import SpotifyPage from './pages/SpotifyPage';
 import LibraryPage from './pages/LibraryPage';
 import SettingsPage from './pages/SettingsPage';
 import { useUIStore } from './store';
-import { usePlayer } from './lib/usePlayer';
+import { usePlayer, usePlayerEvents } from './lib/usePlayer';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,6 +20,7 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
+  usePlayerEvents();
   const { showNowPlaying } = useUIStore();
   const { currentTrack } = usePlayer();
 

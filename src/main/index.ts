@@ -79,6 +79,13 @@ function createWindow() {
   mainWindow.once('ready-to-show', showWindow);
   setTimeout(showWindow, 150);
 
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error(`Renderer failed to load: [${code}] ${desc} at ${url}`);
+  });
+  mainWindow.on('close', () => {
+    console.log('Main window received close event');
+  });
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173').catch(() => {
       mainWindow?.loadFile(path.join(__dirname, '../renderer/index.html'));
