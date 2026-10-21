@@ -24,7 +24,7 @@ export default function Sidebar() {
 
       {/* Nav items */}
       {NAV_ITEMS.map(({ icon: Icon, label, path }) => {
-        const active = pathname === path;
+        const active = pathname === path || (path === '/home' && (pathname === '/' || pathname === ''));
         return (
           <button
             key={path}

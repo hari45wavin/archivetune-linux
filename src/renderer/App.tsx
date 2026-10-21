@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React from 'react';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Sidebar from './components/Sidebar';
 import TitleBar from './components/TitleBar';
@@ -24,7 +24,7 @@ function AppContent() {
   const { currentTrack } = usePlayer();
 
   return (
-    <div className="flex flex-col h-full bg-surface text-on-surface overflow-hidden">
+    <div className="flex flex-col h-full bg-surface text-on-surface overflow-hidden select-none">
       {/* Custom Titlebar */}
       <TitleBar />
 
@@ -35,12 +35,13 @@ function AppContent() {
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden relative">
           <Routes>
-            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/home" element={<HomePage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/spotify" element={<SpotifyPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
@@ -57,9 +58,9 @@ function AppContent() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <HashRouter>
         <AppContent />
-      </BrowserRouter>
+      </HashRouter>
     </QueryClientProvider>
   );
 }

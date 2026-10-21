@@ -8,15 +8,16 @@ import { setupLyricsIPC } from './lyrics';
 import { setupScrobbleIPC } from './scrobble';
 import { setupSpotifyIPC } from './spotify';
 
-// Optimization switches for all Linux distributions (Arch, Ubuntu, Fedora, Debian, etc.)
+// Ensure rock-solid stability and instant cold-boot across all Linux drivers (Intel/AMD/Nvidia).
+// Disabling hardware acceleration prevents Mesa Gallium EGL sync fence crashes (SIGABRT in dri_create_fence_fd)
+// and Wayland GBM scanout buffer allocation errors while using near-zero CPU for 2D UI rendering.
 if (process.platform === 'linux') {
-  // Use native Wayland with automatic fallback to X11
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-software-rasterizer', 'false');
   app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
   app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
-  // Prevent Intel/AMD GBM scanout buffer failure on Wayland
-  app.commandLine.appendSwitch('disable-features', 'WaylandFractionalScaleV1');
   app.commandLine.appendSwitch('disable-gpu-sandbox');
-  app.commandLine.appendSwitch('ignore-gpu-blocklist');
 }
 
 // Single instance lock to prevent duplicate conflicting instances
@@ -29,7 +30,9 @@ if (!gotTheLock) {
 let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV === 'development';
 
+let cachedIconPath: string | null = null;
 function resolveIconPath(): string {
+  if (cachedIconPath) return cachedIconPath;
   const candidates = [
     path.join(__dirname, '../../assets/icon.png'),
     path.join(process.resourcesPath, 'assets/icon.png'),
@@ -37,7 +40,10 @@ function resolveIconPath(): string {
     '/home/hariom_joshi/.local/share/icons/hicolor/256x256/apps/archivetune.png',
   ];
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
+    if (fs.existsSync(candidate)) {
+      cachedIconPath = candidate;
+      return candidate;
+    }
   }
   return '';
 }
@@ -63,14 +69,20 @@ function createWindow() {
     icon: iconPath || undefined,
   });
 
-  // Fast smooth display once renderer is ready
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-  });
+  // Fast display: show immediately once ready, or after 150ms max to prevent perceived delay
+  let shown = false;
+  const showWindow = () => {
+    if (!shown && mainWindow && !mainWindow.isDestroyed()) {
+      shown = true;
+      mainWindow.show();
+    }
+  };
+
+  mainWindow.once('ready-to-show', showWindow);
+  setTimeout(showWindow, 150);
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173').catch(() => {
-      // Fallback if vite dev server is not active
       mainWindow?.loadFile(path.join(__dirname, '../renderer/index.html'));
     });
   } else {
@@ -82,7 +94,7 @@ function createWindow() {
   });
 }
 
-// Handle second instance activation
+// Handle second instance activation: instantly bring to front
 app.on('second-instance', () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -90,12 +102,9 @@ app.on('second-instance', () => {
   }
 });
 
-// Resilient GPU crash handling
+// Crash resilience
 app.on('child-process-gone', (_event, details) => {
-  if (details.type === 'GPU' && details.reason === 'crashed') {
-    console.warn('GPU process crashed, continuing with software rendering fallback');
-    app.disableHardwareAcceleration();
-  }
+  console.warn('Child process gone:', details.type, details.reason);
 });
 
 process.on('uncaughtException', (err) => {

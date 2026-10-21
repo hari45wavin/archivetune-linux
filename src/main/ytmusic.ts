@@ -53,15 +53,23 @@ async function parseYtdlpOutput(stdout: string): Promise<SearchResult[]> {
   }).filter(Boolean) as SearchResult[];
 }
 
-const categoryCache = new Map<string, { data: SearchResult[]; timestamp: number }>();
+const INITIAL_TRENDING_TRACKS: SearchResult[] = [
+  { id: 'kffacxfA7G4', title: 'Die With A Smile', artist: 'Lady Gaga & Bruno Mars', thumbnail: 'https://i.ytimg.com/vi/kffacxfA7G4/hqdefault.jpg', duration: 251 },
+  { id: 'jfKfPfyJRdk', title: 'Birds of a Feather', artist: 'Billie Eilish', thumbnail: 'https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault.jpg', duration: 196 },
+  { id: 'T3E9Wjbq44E', title: 'Good Luck, Babe!', artist: 'Chappell Roan', thumbnail: 'https://i.ytimg.com/vi/T3E9Wjbq44E/hqdefault.jpg', duration: 218 },
+  { id: 'Oa_RSwwpPaA', title: 'Taste', artist: 'Sabrina Carpenter', thumbnail: 'https://i.ytimg.com/vi/Oa_RSwwpPaA/hqdefault.jpg', duration: 157 },
+  { id: 'eVTXPUF4Oz4', title: 'In The End', artist: 'Linkin Park', thumbnail: 'https://i.ytimg.com/vi/eVTXPUF4Oz4/hqdefault.jpg', duration: 218 },
+  { id: 'kJQP7kiw5Fk', title: 'Despacito', artist: 'Luis Fonsi ft. Daddy Yankee', thumbnail: 'https://i.ytimg.com/vi/kJQP7kiw5Fk/hqdefault.jpg', duration: 228 },
+  { id: 'fJ9rUzIMcZQ', title: 'Bohemian Rhapsody', artist: 'Queen', thumbnail: 'https://i.ytimg.com/vi/fJ9rUzIMcZQ/hqdefault.jpg', duration: 359 },
+  { id: 'hT_nvWreIhg', title: 'Counting Stars', artist: 'OneRepublic', thumbnail: 'https://i.ytimg.com/vi/hT_nvWreIhg/hqdefault.jpg', duration: 257 },
+];
+
+const categoryCache = new Map<string, { data: SearchResult[]; timestamp: number }>([
+  ['trending', { data: INITIAL_TRENDING_TRACKS, timestamp: 0 }],
+]);
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes in-memory cache
 
-export async function getLiveCategory(category = 'trending'): Promise<SearchResult[]> {
-  const cached = categoryCache.get(category);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS && cached.data.length > 0) {
-    return cached.data;
-  }
-
+async function fetchCategoryOnline(category: string): Promise<SearchResult[]> {
   const target = CATEGORY_QUERIES[category] || `ytsearch25:${category} songs`;
   const isPlaylist = target.startsWith('http');
 
@@ -106,6 +114,21 @@ export async function getLiveCategory(category = 'trending'): Promise<SearchResu
   } catch {
     return [];
   }
+}
+
+export async function getLiveCategory(category = 'trending'): Promise<SearchResult[]> {
+  const cached = categoryCache.get(category);
+  if (cached && cached.timestamp > 0 && Date.now() - cached.timestamp < CACHE_TTL_MS && cached.data.length > 0) {
+    return cached.data;
+  }
+
+  // Instant seed for cold start: return initial data immediately while fetching fresh data in background
+  if (cached && cached.timestamp === 0) {
+    fetchCategoryOnline(category).catch(() => {});
+    return cached.data;
+  }
+
+  return await fetchCategoryOnline(category);
 }
 
 export async function searchYouTubeMusic(query: string): Promise<SearchResult[]> {
