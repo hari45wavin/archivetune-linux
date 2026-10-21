@@ -2,15 +2,14 @@
  * spotify.ts — Spotify integration matching ArchiveTune's SpotifyCore
  *
  * Supports:
- * - One-click Web Login via Electron BrowserWindow (intercepts sp_dc session cookie)
- * - TOTP-based internal access token generation (RFC 6238 HMAC-SHA1 from sonic-liberation nuances)
- * - Spotify Developer Client Credentials fallback
- * - Fetching Liked Songs, User Playlists, and Playlist Tracks
+ * - One-click Web Login via Electron BrowserWindow (intercepts official Bearer session token & sp_dc cookie)
+ * - Automatic background token refresh using persistent session
+ * - Direct Spotify Access Token and sp_dc cookie manual connection
+ * - Liked Songs, User Playlists, and Playlist Tracks retrieval
  * - SpotifyPlaybackResolver: Resolves Spotify tracks to YouTube Music audio streams for high-fidelity playback
  */
 
-import { ipcMain, BrowserWindow, session } from 'electron';
-import crypto from 'crypto';
+import { app, ipcMain, BrowserWindow, session } from 'electron';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
@@ -19,24 +18,16 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
-const CONFIG_FILE = path.join(os.homedir(), '.config', 'archivetune', 'spotify.json');
 
-const NUANCE_URL = 'https://gist.githubusercontent.com/sonic-liberation/22ed9c6ba463899e933427f7de1f0eef/raw/nuances.json';
-const SERVER_TIME_URL = 'https://open.spotify.com/api/server-time';
-const TOKEN_URL = 'https://open.spotify.com/api/token';
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
-
-// Fallback nuance secret if Gist is unreachable
-const FALLBACK_NUANCE = {
-  s: 'GM3TMMJTGYZTQNZVGM4DINJZHA4TGOBYGMZTCMRTGEYDSMJRHE4TEOBUG4YTCMRUGQ4DQOJUGQYTAMRRGA2TCMJSHE3TCMBY',
-  v: 61,
-};
-
-interface SpotifyToken {
-  accessToken: string;
-  accessTokenExpirationTimestampMs: number;
-  isAnonymous: boolean;
+function getConfigPath(): string {
+  try {
+    return path.join(app.getPath('userData'), 'spotify.json');
+  } catch {
+    return path.join(os.homedir(), '.config', 'archivetune-linux', 'spotify.json');
+  }
 }
+
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 interface StoredConfig {
   spDc?: string;
@@ -54,8 +45,9 @@ let storedConfig: StoredConfig = loadConfig();
 
 function loadConfig(): StoredConfig {
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+    const configPath = getConfigPath();
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     }
   } catch { /* ignore */ }
   return {};
@@ -63,51 +55,19 @@ function loadConfig(): StoredConfig {
 
 function saveConfig(cfg: StoredConfig) {
   try {
-    const dir = path.dirname(CONFIG_FILE);
+    const configPath = getConfigPath();
+    const dir = path.dirname(configPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
+    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8');
     storedConfig = cfg;
   } catch { /* ignore */ }
 }
 
-function base32Decode(input: string): Buffer {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const cleaned = input.toUpperCase().replace(/=/g, '');
-  const bytes: number[] = [];
-  let buffer = 0;
-  let bitsLeft = 0;
-  for (const c of cleaned) {
-    const val = alphabet.indexOf(c);
-    if (val < 0) continue;
-    buffer = (buffer << 5) | val;
-    bitsLeft += 5;
-    if (bitsLeft >= 8) {
-      bitsLeft -= 8;
-      bytes.push((buffer >> bitsLeft) & 0xff);
-    }
-  }
-  return Buffer.from(bytes);
-}
-
-function generateTotp(secret: string, serverTimeSec: number): string {
-  const key = base32Decode(secret);
-  const timeStep = Math.floor(serverTimeSec / 30);
-  const timeBuf = Buffer.alloc(8);
-  timeBuf.writeBigInt64BE(BigInt(timeStep));
-  const hmac = crypto.createHmac('sha1', key).update(timeBuf).digest();
-  const offset = hmac[hmac.length - 1] & 0x0f;
-  const code =
-    ((hmac[offset] & 0x7f) << 24) |
-    ((hmac[offset + 1] & 0xff) << 16) |
-    ((hmac[offset + 2] & 0xff) << 8) |
-    (hmac[offset + 3] & 0xff);
-  return String(code % 1000000).padStart(6, '0');
-}
-
 function httpGet(url: string, headers: Record<string, string> = {}): Promise<string> {
   return new Promise((resolve, reject) => {
+    const u = new URL(url);
     const req = https.get(
-      url,
+      u,
       {
         headers: {
           'User-Agent': USER_AGENT,
@@ -119,68 +79,94 @@ function httpGet(url: string, headers: Record<string, string> = {}): Promise<str
       (res) => {
         let data = '';
         res.on('data', (c) => { data += c; });
-        res.on('end', () => resolve(data));
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          } else {
+            resolve(data);
+          }
+        });
         res.on('error', reject);
       }
     );
     req.on('error', reject);
-    req.setTimeout(12000, () => { req.destroy(); reject(new Error('timeout')); });
+    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Request timed out')); });
   });
 }
 
-async function fetchAccessToken(spDc: string): Promise<SpotifyToken> {
-  let nuance = FALLBACK_NUANCE;
-  try {
-    const nuancesStr = await httpGet(NUANCE_URL);
-    const nuances: Array<{ s: string; v: number }> = JSON.parse(nuancesStr);
-    const latest = nuances.sort((a, b) => b.v - a.v)[0];
-    if (latest && latest.s) nuance = latest;
-  } catch {
-    /* fallback to hardcoded nuance */
-  }
+/**
+ * Silently refresh Spotify access token using the stored web session in background
+ */
+async function refreshWebTokenSilently(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const authSession = session.fromPartition('persist:spotify', { cache: true });
+    let resolved = false;
 
-  let serverTimeSec = Math.floor(Date.now() / 1000);
-  try {
-    const timeStr = await httpGet(SERVER_TIME_URL);
-    const timeJson = JSON.parse(timeStr);
-    if (timeJson.serverTime) serverTimeSec = Math.floor(timeJson.serverTime / 1000);
-  } catch {
-    /* fallback to local clock */
-  }
+    const bgWindow = new BrowserWindow({
+      show: false,
+      width: 400,
+      height: 400,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        session: authSession,
+      },
+    });
 
-  const totp = generateTotp(nuance.s, serverTimeSec);
-  const tokenUrl = `${TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${totp}&totpVer=${nuance.v}`;
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        if (!bgWindow.isDestroyed()) bgWindow.close();
+        reject(new Error('Spotify session refresh timed out. Please reconnect Spotify.'));
+      }
+    }, 15000);
 
-  const resBody = await httpGet(tokenUrl, {
-    Cookie: `sp_dc=${spDc}`,
-    'App-Platform': 'WebPlayer',
-    Origin: 'https://open.spotify.com',
-    Referer: 'https://open.spotify.com/',
+    const onHeader = (details: any, callback: any) => {
+      const auth = details.requestHeaders['Authorization'] || details.requestHeaders['authorization'];
+      if (auth && auth.startsWith('Bearer ') && auth.length > 30) {
+        const token = auth.substring(7);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          saveConfig({
+            ...storedConfig,
+            accessToken: token,
+            expiresAt: Date.now() + 3600 * 1000,
+          });
+          setTimeout(() => {
+            if (!bgWindow.isDestroyed()) bgWindow.close();
+          }, 500);
+          resolve(token);
+        }
+      }
+      callback({ requestHeaders: details.requestHeaders });
+    };
+
+    authSession.webRequest.onBeforeSendHeaders(
+      { urls: ['https://api.spotify.com/*', 'https://spclient.wg.spotify.com/*'] },
+      onHeader
+    );
+
+    bgWindow.loadURL('https://open.spotify.com/');
   });
-
-  const parsed = JSON.parse(resBody);
-  if (!parsed.accessToken || parsed.isAnonymous) {
-    throw new Error('Received anonymous token — your sp_dc cookie may be invalid or expired');
-  }
-
-  return parsed as SpotifyToken;
 }
 
 async function getValidToken(): Promise<string> {
   if (storedConfig.accessToken && storedConfig.expiresAt && Date.now() < storedConfig.expiresAt - 60000) {
     return storedConfig.accessToken;
   }
-  if (!storedConfig.spDc) {
-    throw new Error('Spotify is not connected. Please log in or provide your sp_dc cookie.');
-  }
 
-  const tok = await fetchAccessToken(storedConfig.spDc);
-  saveConfig({
-    ...storedConfig,
-    accessToken: tok.accessToken,
-    expiresAt: tok.accessTokenExpirationTimestampMs,
-  });
-  return tok.accessToken;
+  // Attempt silent refresh if we have a session or sp_dc
+  try {
+    const token = await refreshWebTokenSilently();
+    return token;
+  } catch (err) {
+    // If we have an existing accessToken, fall back to it
+    if (storedConfig.accessToken) {
+      return storedConfig.accessToken;
+    }
+    throw new Error('Spotify is not connected. Please log in or provide your access token.');
+  }
 }
 
 async function spotifyApi(endpoint: string): Promise<any> {
@@ -198,20 +184,23 @@ async function spotifyApi(endpoint: string): Promise<any> {
  */
 export async function resolveSpotifyTrackToStream(track: { title: string; artist: string }): Promise<{ url: string; id: string }> {
   const query = `ytsearch1:${track.artist} - ${track.title} official audio`;
-  const { stdout } = await execFileAsync('yt-dlp', [
-    '--dump-json',
-    '--no-warnings',
-    '--quiet',
+
+  const searchOut = await execFileAsync('yt-dlp', [
     query,
+    '--dump-json',
+    '--default-search',
+    'ytsearch',
+    '--no-playlist',
+    '--quiet',
   ], { timeout: 30000 });
 
-  const firstLine = stdout.trim().split('\n')[0];
-  const info = JSON.parse(firstLine);
+  const info = JSON.parse(searchOut.stdout);
   const videoId = info.id;
+  if (!videoId) throw new Error('Could not match Spotify track on YouTube');
 
   const urlOut = await execFileAsync('yt-dlp', [
-    '--no-playlist',
-    '--format', 'bestaudio[ext=webm]/bestaudio/best',
+    '-f',
+    'bestaudio[ext=m4a]/bestaudio',
     '--get-url',
     '--quiet',
     `https://www.youtube.com/watch?v=${videoId}`,
@@ -225,7 +214,7 @@ export async function resolveSpotifyTrackToStream(track: { title: string; artist
 
 export function setupSpotifyIPC() {
   ipcMain.handle('spotify:getStatus', () => ({
-    connected: !!storedConfig.spDc,
+    connected: !!(storedConfig.accessToken || storedConfig.spDc),
     user: storedConfig.user ?? null,
   }));
 
@@ -234,33 +223,44 @@ export function setupSpotifyIPC() {
     return new Promise((resolve) => {
       let resolved = false;
 
+      const authSession = session.fromPartition('persist:spotify', { cache: true });
+
       const authWindow = new BrowserWindow({
-        width: 500,
+        width: 520,
         height: 720,
         title: 'Connect Spotify — ArchiveTune',
         autoHideMenuBar: true,
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
+          session: authSession,
         },
       });
 
-      const handleSpDc = async (spDc: string) => {
+      const handleTokenSuccess = async (token: string, spDcCookie?: string) => {
         if (resolved) return;
         resolved = true;
-        try {
-          if (!authWindow.isDestroyed()) authWindow.close();
 
-          const token = await fetchAccessToken(spDc);
+        try {
+          // Validate token with Spotify /me endpoint
           const userRes = await httpGet('https://api.spotify.com/v1/me', {
-            Authorization: `Bearer ${token.accessToken}`,
+            Authorization: `Bearer ${token}`,
           });
           const userData = JSON.parse(userRes);
 
+          // Retrieve sp_dc cookie from session if available
+          let finalSpDc = spDcCookie || storedConfig.spDc;
+          if (!finalSpDc) {
+            try {
+              const cookies = await authSession.cookies.get({ domain: '.spotify.com', name: 'sp_dc' });
+              if (cookies.length > 0) finalSpDc = cookies[0].value;
+            } catch { /* ignore */ }
+          }
+
           saveConfig({
-            spDc,
-            accessToken: token.accessToken,
-            expiresAt: token.accessTokenExpirationTimestampMs,
+            spDc: finalSpDc,
+            accessToken: token,
+            expiresAt: Date.now() + 3600 * 1000,
             user: {
               id: userData.id,
               displayName: userData.display_name || userData.id,
@@ -269,40 +269,71 @@ export function setupSpotifyIPC() {
             },
           });
 
+          setTimeout(() => {
+            if (!authWindow.isDestroyed()) authWindow.close();
+          }, 500);
+
           resolve({ ok: true, user: storedConfig.user });
         } catch (err: any) {
-          resolve({ ok: false, error: err.message || 'Failed to authenticate token with Spotify' });
+          if (!authWindow.isDestroyed()) authWindow.close();
+          resolve({ ok: false, error: err.message || 'Failed to authenticate with Spotify API' });
         }
       };
 
-      // 1. Intercept cookie directly via cookie store change events
-      const cookieListener = (_event: any, cookie: any, _cause: any, removed: boolean) => {
-        if (cookie.name === 'sp_dc' && !removed && cookie.value) {
-          handleSpDc(cookie.value);
+      // 1. Intercept Authorization Bearer header directly from network requests made by Spotify Web Player
+      const onBeforeSendHeaders = (details: any, callback: any) => {
+        const auth = details.requestHeaders['Authorization'] || details.requestHeaders['authorization'];
+        if (auth && auth.startsWith('Bearer ') && auth.length > 30) {
+          const token = auth.substring(7);
+          handleTokenSuccess(token);
         }
+        callback({ requestHeaders: details.requestHeaders });
       };
-      session.defaultSession.cookies.on('changed', cookieListener);
 
-      // 2. Poll cookies periodically as fallback
-      const pollTimer = setInterval(async () => {
-        if (resolved) {
-          clearInterval(pollTimer);
-          return;
+      authSession.webRequest.onBeforeSendHeaders(
+        { urls: ['https://api.spotify.com/*', 'https://spclient.wg.spotify.com/*', 'https://*.spotify.com/*'] },
+        onBeforeSendHeaders
+      );
+
+      // 2. Fallback: check DOM/session storage when open.spotify.com finishes loading
+      authWindow.webContents.on('did-finish-load', async () => {
+        const currentUrl = authWindow.webContents.getURL();
+        if (currentUrl.includes('open.spotify.com')) {
+          try {
+            const token = await authWindow.webContents.executeJavaScript(`
+              (() => {
+                try {
+                  for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    const val = sessionStorage.getItem(key);
+                    if (val && val.includes('accessToken')) {
+                      const parsed = JSON.parse(val);
+                      if (parsed.accessToken) return parsed.accessToken;
+                    }
+                  }
+                  for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    const val = localStorage.getItem(key);
+                    if (val && val.includes('accessToken')) {
+                      const parsed = JSON.parse(val);
+                      if (parsed.accessToken) return parsed.accessToken;
+                    }
+                  }
+                } catch (e) {}
+                return null;
+              })()
+            `);
+            if (token && typeof token === 'string' && token.length > 30) {
+              handleTokenSuccess(token);
+            }
+          } catch { /* ignore */ }
         }
-        try {
-          const cookies = await session.defaultSession.cookies.get({ name: 'sp_dc' });
-          if (cookies.length > 0 && cookies[0].value) {
-            clearInterval(pollTimer);
-            handleSpDc(cookies[0].value);
-          }
-        } catch { /* ignore */ }
-      }, 500);
+      });
 
+      // Load Spotify login page with redirect to Web Player
       authWindow.loadURL('https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F');
 
       authWindow.on('closed', () => {
-        clearInterval(pollTimer);
-        session.defaultSession.cookies.removeListener('changed', cookieListener);
         if (!resolved) {
           resolve({ ok: false, error: 'Login window was closed before completing login' });
         }
@@ -310,19 +341,66 @@ export function setupSpotifyIPC() {
     });
   });
 
-  // Manual sp_dc cookie connection
-  ipcMain.handle('spotify:connectManual', async (_e, spDc: string) => {
+  // Manual connection: accepts Bearer access token OR sp_dc cookie
+  ipcMain.handle('spotify:connectManual', async (_e, rawInput: string) => {
+    const input = rawInput.trim();
+    if (!input) return { ok: false, error: 'Please enter a valid Spotify token or cookie.' };
+
+    // Case A: Direct Spotify Bearer access token (starts with BQ or contains token characters)
+    if (input.startsWith('BQ') || (input.length > 100 && !input.startsWith('AQ') && !input.startsWith('sp_dc='))) {
+      try {
+        const userRes = await httpGet('https://api.spotify.com/v1/me', {
+          Authorization: `Bearer ${input}`,
+        });
+        const userData = JSON.parse(userRes);
+
+        saveConfig({
+          accessToken: input,
+          expiresAt: Date.now() + 3600 * 1000,
+          user: {
+            id: userData.id,
+            displayName: userData.display_name || userData.id,
+            avatarUrl: userData.images?.[0]?.url,
+            product: userData.product,
+          },
+        });
+
+        return { ok: true, user: storedConfig.user };
+      } catch (err: any) {
+        return { ok: false, error: `Invalid access token: ${err.message}` };
+      }
+    }
+
+    // Case B: sp_dc cookie
+    const cleanCookie = input.replace(/^sp_dc=/, '').trim();
     try {
-      const token = await fetchAccessToken(spDc.trim());
+      const authSession = session.fromPartition('persist:spotify', { cache: true });
+      await authSession.cookies.set({
+        url: 'https://open.spotify.com',
+        domain: '.spotify.com',
+        name: 'sp_dc',
+        value: cleanCookie,
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'no_restriction',
+        expirationDate: Math.floor(Date.now() / 1000) + 365 * 24 * 3600,
+      });
+
+      storedConfig.spDc = cleanCookie;
+      saveConfig(storedConfig);
+
+      // Trigger silent background web session with the new cookie to capture Bearer token
+      const token = await refreshWebTokenSilently();
       const userRes = await httpGet('https://api.spotify.com/v1/me', {
-        Authorization: `Bearer ${token.accessToken}`,
+        Authorization: `Bearer ${token}`,
       });
       const userData = JSON.parse(userRes);
 
       saveConfig({
-        spDc: spDc.trim(),
-        accessToken: token.accessToken,
-        expiresAt: token.accessTokenExpirationTimestampMs,
+        spDc: cleanCookie,
+        accessToken: token,
+        expiresAt: Date.now() + 3600 * 1000,
         user: {
           id: userData.id,
           displayName: userData.display_name || userData.id,
@@ -333,13 +411,17 @@ export function setupSpotifyIPC() {
 
       return { ok: true, user: storedConfig.user };
     } catch (err: any) {
-      return { ok: false, error: err.message || String(err) };
+      return { ok: false, error: err.message || 'Failed to authenticate sp_dc cookie with Spotify' };
     }
   });
 
   // Disconnect
-  ipcMain.handle('spotify:disconnect', () => {
+  ipcMain.handle('spotify:disconnect', async () => {
     saveConfig({});
+    try {
+      const authSession = session.fromPartition('persist:spotify');
+      await authSession.clearStorageData();
+    } catch { /* ignore */ }
     return { ok: true };
   });
 

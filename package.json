@@ -49,7 +49,7 @@
     "appId": "com.rukamori.archivetune.linux",
     "productName": "ArchiveTune",
     "linux": {
-      "target": ["AppImage", "deb", "rpm"],
+      "target": ["AppImage", "dir"],
       "category": "Audio",
       "icon": "assets/icon.png",
       "synopsis": "YouTube Music & Local Files Player",

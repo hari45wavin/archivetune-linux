@@ -138,7 +138,7 @@ export default function SpotifyPage() {
             className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-sm transition-all shadow-md disabled:opacity-50"
           >
             <LogIn size={18} />
-            {loginMutation.isPending ? 'Logging in...' : 'Connect with Spotify (Web Login)'}
+            {loginMutation.isPending ? 'Logging in... Check Spotify login window' : 'Connect with Spotify (Web Login)'}
           </button>
 
           <div className="relative flex py-2 items-center">
@@ -152,7 +152,7 @@ export default function SpotifyPage() {
               onClick={() => setShowManualCookie(true)}
               className="w-full py-2.5 text-xs font-medium text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-2 transition-colors"
             >
-              <Key size={14} /> Enter `sp_dc` Session Cookie Manually
+              <Key size={14} /> Enter `sp_dc` Session Cookie or Access Token Manually
             </button>
           ) : (
             <form
@@ -162,23 +162,28 @@ export default function SpotifyPage() {
               }}
               className="space-y-3 pt-1"
             >
-              <label className="text-xs text-on-surface-variant block">
-                Spotify `sp_dc` Cookie (from browser developer tools):
-              </label>
-              <input
-                type="password"
-                value={spDcInput}
-                onChange={(e) => setSpDcInput(e.target.value)}
-                placeholder="AQB..."
-                className="w-full px-3 py-2 text-sm rounded-xl bg-surface-container-high text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+              <div>
+                <label className="text-xs text-on-surface-variant block mb-1">
+                  Spotify `sp_dc` Cookie or Bearer Access Token:
+                </label>
+                <input
+                  type="password"
+                  value={spDcInput}
+                  onChange={(e) => setSpDcInput(e.target.value)}
+                  placeholder="AQB... (sp_dc cookie) or BQ... (access token)"
+                  className="w-full px-3 py-2 text-sm rounded-xl bg-surface-container-high text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <p className="text-[11px] text-on-surface-variant/70 mt-1.5">
+                  You can paste your <code className="text-primary font-mono">sp_dc</code> cookie from browser Developer Tools (Application &rarr; Cookies &rarr; https://open.spotify.com) or a direct Bearer access token.
+                </p>
+              </div>
               <div className="flex gap-2">
                 <button
                   type="submit"
                   disabled={manualMutation.isPending || !spDcInput.trim()}
                   className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold hover:opacity-90 disabled:opacity-50"
                 >
-                  {manualMutation.isPending ? 'Connecting...' : 'Connect Cookie'}
+                  {manualMutation.isPending ? 'Connecting...' : 'Connect'}
                 </button>
                 <button
                   type="button"
